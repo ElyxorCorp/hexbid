@@ -4,6 +4,9 @@ This project is an open-source java implementation of Beeswax bidder server
 based on [Netty](http://netty.io/) server framework. It is a starting point for
 the development of production quality custom bidder.
 
+### Development
+When opening the project up in an IDE for the first time, open from the `java/` directory.
+
 ### How to build
 You require the following to build hexbid:
 
