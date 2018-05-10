@@ -1,15 +1,15 @@
-//buildscript{
-//    ext {
-//        branch = System.getenv('BRANCH_NAME') != null ? System.getenv('BRANCH_NAME') :
-//                ( System.getenv('USER')!=null ? System.getenv('USER') : System.getenv('USERNAME') )
-//        dependencyRepo = ( branch == "release" ? "libs-release" : "libs-snapshot" )
-//        deployVersion = ( branch == "release" ? project.version : "${project.version}-SNAPSHOT" )
-//    }
-//    repositories {
-//        maven { url "$artifactoryUrl/$dependencyRepo"}
-//        mavenCentral()
-//    }
-//}
+buildscript{
+    ext {
+        branch = System.getenv('BRANCH_NAME') != null ? System.getenv('BRANCH_NAME') :
+                ( System.getenv('USER')!=null ? System.getenv('USER') : System.getenv('USERNAME') )
+        dependencyRepo = ( branch == "release" ? "libs-release" : "libs-snapshot" )
+        deployVersion = ( branch == "release" ? project.version : "${project.version}-SNAPSHOT" )
+    }
+    repositories {
+        maven { url "$artifactoryUrl/$dependencyRepo"}
+        mavenCentral()
+    }
+}
 
 apply plugin: 'java'
 apply plugin: 'maven'
@@ -18,7 +18,7 @@ apply plugin: 'idea'
 apply plugin: 'application'
 
 ext.beeswaxVersion = "2017-03-16"
-
+version = deployVersion
 mainClassName = 'com.beeswax.hexbid.server.HexbidServer'
 
 repositories {
@@ -62,34 +62,59 @@ jar {
     }
 }
 
-task sourcesJar(type: Jar) {
-    classifier 'sources'
-    from sourceSets.main.allJava
+task shadowJar( type: Jar ) {
+    classifier = 'fat'
+
+    from {
+        configurations.compile.resolve().collect { it.isDirectory() ? it : zipTree(it) }
+    }
+    with jar
+
+    manifest {
+        attributes (
+                'Implementation-Title': (project.group + "." + project.name),
+                'Implementation-Version': version,
+                'Implementation-Timestamp': new Date(),
+                "Implementation-Vendor": mftVendor,
+                "Specification-Title": mftTitle,
+                "Specification-Version": version,
+                "Specification-Vendor": mftVendor,
+                "Bundle-License": pomLicense,
+                'Main-Class': project.mainClassName
+        )
+    }
+}
+
+task sourceJar(type: Jar, dependsOn: classes) {
+    classifier = 'sources'
+    baseName = project.name
+    from sourceSets.main.allSource
 }
 
 publishing {
     publications {
-        maven(MavenPublication) {
+        json4j(MavenPublication) {
+            version project.version
             from components.java
             pom.withXml {
-                def root = asNode()
-
-                root.appendNode("name", mftTitle)
-                root.appendNode("description", mftTitle)
-                root.appendNode("url", project.scmUrl)
-                def organization = new Node(root, "organization")
-                organization.appendNode("name", mftVendor)
-                organization.appendNode("url", mftVendorUrl)
-                def license = new Node(new Node(root, "licenses"), "license")
-                license.appendNode('name', pomLicense)
-                license.appendNode('distribution', 'repo')
-                def scm = new Node(root, "scm")
-                scm.appendNode("connection", scmConnection)
-                scm.appendNode("developerConnection", scmDevConnection)
-                scm.appendNode("url", scmUrl)
-                def dependencies = root.get("dependencies")
-                root.remove(dependencies)
-                root.append(dependencies)
+                asNode().children().last() + {
+                    resolveStrategy = Closure.DELEGATE_FIRST
+                    name mftTitle
+                    description mftDescription
+                    url scmUrl
+                    scm {
+                        url scmUrl
+                        connection scmConnection
+                        developerConnection scmDevConnection
+                    }
+                    licenses {
+                        license {
+                            name pomLicense
+                            url pomLicense
+                            //Distribution 'repo'
+                        }
+                    }
+                }
             }
         }
     }
@@ -97,7 +122,11 @@ publishing {
 
 artifacts {
     archives jar
-    archives sourcesJar
+    archives sourceJar
+    archives shadowJar
 }
 
-build.dependsOn('clean', 'sourcesJar')
+distZip.enabled = true
+distTar.enabled = true
+
+build.dependsOn('clean')
