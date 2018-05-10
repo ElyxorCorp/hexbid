@@ -1,1 +1,21 @@
+# Maven
+/target/
+
+#Gradle
+.gradle/
+/build
+
+#IntelliJ
+*.idea/
 *.iml
+
+# Eclipse
+.classpath
+.factorypath
+.project
+.settings/
+.metadata/
+
+~*
+.DS_Store
+out/
